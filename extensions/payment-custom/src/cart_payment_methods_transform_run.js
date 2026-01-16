@@ -1,74 +1,52 @@
 // @ts-check
 
 /**
- * @typedef {import("../generated/api").CartPaymentMethodsTransformRunInput} CartPaymentMethodsTransformRunInput
- * @typedef {import("../generated/api").CartPaymentMethodsTransformRunResult} CartPaymentMethodsTransformRunResult
+ * @typedef {import("../generated/api").Input} Input
+ * @typedef {import("../generated/api").Operation} Operation
  */
 
 /**
- * @type {CartPaymentMethodsTransformRunResult}
+ * @type {{ operations: Operation[] }}
  */
 const NO_CHANGES = {
   operations: [],
 };
 
 /**
- * @param {CartPaymentMethodsTransformRunInput} input
- * @returns {CartPaymentMethodsTransformRunResult}
+ * @param {Input} input
+ * @returns {{ operations: Operation[] }}
  */
 export function cartPaymentMethodsTransformRun(input) {
-  const configuration = JSON.parse(
-    input?.paymentCustomization?.metafield?.value ?? "{}"
-  );
+  // Get the selected shipping option title
+  const deliveryGroups = input.cart?.deliveryGroups || [];
+  const group = deliveryGroups[0];
+  const selectedShipping = group?.selectedDeliveryOption;
+  const selectedShippingTitle = selectedShipping?.title?.toLowerCase().trim() || "";
 
-  /** @type {Array<{selected?: boolean, title?: string}>} */
-  const shippingLines = input.cart?.deliveryGroups?.[0]?.deliveryOptions || [];
-  /** @type {{selected?: boolean, title?: string}|undefined} */
-  const selectedShipping = shippingLines.find(/**
-   * @param {any} option
-   */
-  (option) => option.selected);
-  const selectedShippingTitle = selectedShipping?.title || "";
+  // Use the correct paymentMethods array from input
+  const paymentMethods = input.paymentMethods || [];
 
-  /** @type {Array<{id: string, title?: string, type?: string}>} */
-  const paymentMethods = input.cart?.paymentMethods || [];
-
-  /** @type {Array<{hide: {paymentMethodId: string}}>} */
+  /** @type {Operation[]} */
   const operations = [];
 
   // Hide COD if Standard shipping is selected
-  if (selectedShippingTitle.toLowerCase().includes("standard")) {
-    paymentMethods.forEach(/**
-     * @param {{id: string, title?: string, type?: string}} method
-     */
-    (method) => {
-      if (method.title && (method.title.toLowerCase().includes("cash on delivery") || method.type === "cash_on_delivery")) {
-        operations.push({
-          hide: {
-            paymentMethodId: method.id
-          }
-        });
+  if (selectedShippingTitle.includes("standard")) {
+    paymentMethods.forEach(method => {
+      if (method.name && method.name.toLowerCase().includes("cash on delivery")) {
+        operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
       }
     });
   }
 
-  // Hide Credit Card if Cash on Delivery shipping is selected
-  if (selectedShippingTitle.toLowerCase().includes("cash on delivery")) {
-    paymentMethods.forEach(/**
-     * @param {{id: string, title?: string, type?: string}} method
-     */
-    (method) => {
-      if (method.title && (method.title.toLowerCase().includes("credit card") || method.type === "credit_card")) {
-        operations.push({
-          hide: {
-            paymentMethodId: method.id
-          }
-        });
+  // Hide all payment methods except Cash on Delivery (COD) if Cash on Delivery shipping is selected
+  const codVariants = ["cash on delivery", "cod"];
+  if (codVariants.some(v => selectedShippingTitle.includes(v))) {
+    paymentMethods.forEach(method => {
+      if (!(method.name && method.name.toLowerCase().includes("cash on delivery"))) {
+        operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
       }
     });
   }
 
-  return {
-    operations
-  };
+  return { operations };
 }

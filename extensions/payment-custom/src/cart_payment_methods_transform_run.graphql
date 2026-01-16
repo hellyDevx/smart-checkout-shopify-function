@@ -1,7 +1,13 @@
 query CartPaymentMethodsTransformRunInput {
-  paymentCustomization {
-    metafield(namespace: "$app:payment-custom", key: "function-configuration") {
-      value
+  cart {
+    deliveryGroups {
+      selectedDeliveryOption {
+        title
+      }
     }
+  }
+  paymentMethods {
+    id
+    name
   }
 }
